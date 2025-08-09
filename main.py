@@ -31,6 +31,14 @@ role_thresholds = {
     "Sapphire": 50_000_000
 }
 
+# Reaction role mappings
+reaction_roles = {
+    "🎉": "Giveaways",  # party emoji
+    "💀": "PvP",        # skull emoji
+    "⚔️": "PvM",        # crossswords emoji
+    "🤖": "Botters"     # robot emoji
+}
+
 def save_data():
     with open(spending_file, "w") as f:
         json.dump(spending_data, f)
@@ -144,6 +152,58 @@ async def leaderboard(interaction: discord.Interaction):
     leaderboard_text = "\n".join(leaderboard_lines)
 
     await interaction.response.send_message(f"**Top OSRS GP Spenders:**\n{leaderboard_text}")
+
+# /React - admin only, creates reaction role message
+@bot.tree.command(name="react", description="Create a reaction role message (admin only)")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def react(interaction: discord.Interaction):
+    # Create the message
+    message = await interaction.channel.send("React here")
+    
+    # Add all the reactions
+    for emoji in reaction_roles.keys():
+        await message.add_reaction(emoji)
+    
+    await interaction.response.send_message("Reaction role message created!", ephemeral=True)
+
+# Reaction event handlers
+@bot.event
+async def on_raw_reaction_add(payload):
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
+        return
+    
+    member = guild.get_member(payload.user_id)
+    if not member or member.bot:
+        return
+    
+    emoji = str(payload.emoji)
+    if emoji not in reaction_roles:
+        return
+    
+    role_name = reaction_roles[emoji]
+    role = discord.utils.get(guild.roles, name=role_name)
+    
+    if role and role not in member.roles:
+        await member.add_roles(role)
+
+@bot.event
+async def on_raw_reaction_remove(payload):
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
+        return
+    
+    emoji = str(payload.emoji)
+    if emoji not in reaction_roles:
+        return
+    
+    role_name = reaction_roles[emoji]
+    role = discord.utils.get(guild.roles, name=role_name)
+    
+    if role:
+        member = guild.get_member(payload.user_id)
+        if member and role in member.roles:
+            await member.remove_roles(role)
 
 import os
 bot.run(os.environ["GPBOT_DISCORD"])
